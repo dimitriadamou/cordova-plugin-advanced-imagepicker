@@ -215,8 +215,6 @@
     }else if(self.selectMode==102){
         options.predicate = [NSPredicate predicateWithFormat:@"mediaType == %ld", PHAssetMediaTypeVideo];
     }
-    
-    int defaultSelection, i = 0; //为了进入选择界面默认显示CameraRoll下的图片
 
     for (PHFetchResult *fetchResult in allAlbums) {
         for (PHAssetCollection *collection in fetchResult) {
@@ -226,24 +224,25 @@
             if (collection.estimatedAssetCount <= 0) continue;
             if (collection.assetCollectionSubtype == PHAssetCollectionSubtypeSmartAlbumAllHidden) continue; //包含隐藏照片或视频的文件夹
             if (collection.assetCollectionSubtype == 1000000201) continue; //『最近删除』相册
-            if (collection.assetCollectionSubtype == PHAssetCollectionSubtypeSmartAlbumUserLibrary) {
-                defaultSelection = i;
-            }
+ 
             PHFetchResult *group = [PHAsset fetchAssetsInAssetCollection:collection options:options];
             if([group count]>0){
                 [albumsTitlelist addObject:collection.localizedTitle];
                 [dataSource addObject:group];
-                i++;
             }
         }
     }
-    
+
     _manager = [PHImageManager defaultManager];
-    [self show: defaultSelection];
+    [self show:0];
 }
 
 -(void)show:(NSInteger) index {
     if([dataSource count]>0){
+        if([dataSource count] < index) {
+            index = 0;
+        }
+        
         fetchResult = dataSource[index];
         [self setTitleView:albumsTitlelist[index]];
         [_collectionView reloadData];
