@@ -58,7 +58,9 @@
         dmc.modalInPresentation = true;
     }
     dmc._delegate=self;
-    [self.viewController presentViewController:[[UINavigationController alloc]initWithRootViewController:dmc] animated:YES completion:nil];
+    UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:dmc];
+    [navController setModalPresentationStyle:UIModalPresentationFullScreen];
+    [self.viewController presentViewController:navController animated:YES completion:nil];
 }
 
 -(void) resultPicker:(NSMutableArray*) selectArray annotate:(BOOL)annotate
