@@ -7,12 +7,13 @@
     NSString* callbackId;
     NSInteger photoWidth;
     NSInteger photoHeight;
+    NSString* textOverlay;
 }
 
 - (void)present:(CDVInvokedUrlCommand*)command;
 - (void)takePhoto:(CDVInvokedUrlCommand*)command;
 - (void)extractThumbnail:(CDVInvokedUrlCommand*)command;
-- (NSData *)processImage:(NSData*)imageData;
+- (NSData *)processImage:(NSData*)imageData text:(NSString*)text;
 
 //writeToFile:(NSString *)path options:(NSDataWritingOptions)writeOptionsMask error:(NSError **)errorPtr;
 @end
@@ -39,6 +40,12 @@
         dmc.maxSelectSize=  104857600;
     }@catch (NSException *exception) {
         NSLog(@"Exception: %@", exception);
+    }
+    
+    @try{
+        textOverlay = [[options objectForKey:@"textOverlay"]stringValue];
+    }@catch (NSException *exception) {
+        textOverlay = @"";
     }
     
     @try{
@@ -130,7 +137,7 @@
  UIGraphicsEndImageContext()
  */
 
--(NSData*)processImage:(NSData*)imageData {
+-(NSData*)processImage:(NSData*)imageData text:(NSString*)text {
     
     UIImage* image = [UIImage imageWithData:imageData];
     
@@ -148,19 +155,65 @@
             newSize = CGSizeMake(imgSize.width * widthRatio, imgSize.height * widthRatio);
         }
         
+        CGFloat fontSize = newSize.width / 40;
+        // Set a minimum font size to ensure readability
+        fontSize = MAX(fontSize, 10.0);
         CGRect rect = CGRectMake(0, 0, newSize.width, newSize.height);
-                
+        NSMutableParagraphStyle* textStyle = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
+        textStyle.alignment = NSTextAlignmentRight;
+        NSDictionary* textFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Helvetica" size: fontSize], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: textStyle };
+
+        // Calculate text rect
+        CGSize textSize = [text sizeWithAttributes:textFontAttributes];
+        // Add some padding around the text
+        CGFloat padding = fontSize * 0.8;
+        CGRect textBackgroundRect = CGRectMake(
+            newSize.width - textSize.width - 40 - padding,
+            newSize.height - textSize.height - 40 - padding,
+            textSize.width + (padding * 2),
+            textSize.height + (padding * 2)
+        );
+        
+        CGRect textRect = CGRectMake(
+            textBackgroundRect.origin.x + padding,
+            textBackgroundRect.origin.y + padding,
+            textSize.width,
+            textSize.height
+        );
+        
         UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0f);
         CGContextRef context = UIGraphicsGetCurrentContext();
-        
-        
+
+        // Draw the image
         UIGraphicsPushContext(context);
-        [image drawInRect:rect]; // UIImage will handle all especial cases!
+        [image drawInRect:rect];
         UIGraphicsPopContext();
         
-        image = UIGraphicsGetImageFromCurrentImageContext();
-        UIGraphicsEndImageContext();
-        
+        if(text != nil && ![text isEqualToString:@""]) {
+            
+            // Draw semi-transparent background
+            UIGraphicsPushContext(context);
+            // Set fill color to 50% gray with 50% alpha
+            [[UIColor colorWithWhite:0.5 alpha:0.5] setFill];
+            // Set stroke color to white with 70% alpha for the border
+            [[UIColor colorWithWhite:1.0 alpha:0.7] setStroke];
+            
+            // Create path for rounded rectangle
+            UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:textBackgroundRect cornerRadius:padding/2];
+            [path setLineWidth:1.0];
+            [path fill];
+            [path stroke];
+            UIGraphicsPopContext();
+            
+            // Draw the text
+            UIGraphicsPushContext(context);
+            [text drawInRect:textRect withAttributes:textFontAttributes];
+            UIGraphicsPopContext();
+            
+            image = UIGraphicsGetImageFromCurrentImageContext();
+            UIGraphicsEndImageContext();
+            
+        }
     }
     return UIImageJPEGRepresentation(image, 0.8f);
 }
@@ -174,7 +227,7 @@
 
     NSString *filename=[asset valueForKey:@"filename"];
 
-    NSData * processedImageData = [self processImage:imageData];
+    NSData * processedImageData = [self processImage:imageData text:textOverlay];
     
     if( processedImageData == nil ) {
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error with image data."] callbackId:self->callbackId];

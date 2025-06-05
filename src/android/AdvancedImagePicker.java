@@ -2,9 +2,18 @@ package de.einfachhans.AdvancedImagePicker;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
 import androidx.exifinterface.media.ExifInterface;
+
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.net.Uri;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
 import android.util.Base64;
 
 import org.apache.cordova.CallbackContext;
@@ -80,6 +89,7 @@ public class AdvancedImagePicker extends CordovaPlugin {
         boolean asJpeg = options.optBoolean("asJpeg");
         int width = options.optInt("width", 1024);
         int height = options.optInt("height", 1024);
+        String textOverlay = options.optString("textOverflow", "");
 
         if (min < 0 || max < 0) {
             this.returnError(AdvancedImagePickerErrorCodes.WrongJsonObject, "Min and Max can not be less then zero.");
@@ -123,7 +133,7 @@ public class AdvancedImagePicker extends CordovaPlugin {
         if (max == 1) {
             String finalType = type;
             builder.start(result -> {
-                this.handleResult(result, asBase64, finalType, asJpeg, width, height);
+                this.handleResult(result, asBase64, finalType, asJpeg, width, height, textOverlay);
             });
         } else {
             if (min > 0) {
@@ -135,12 +145,12 @@ public class AdvancedImagePicker extends CordovaPlugin {
 
             String finalType1 = type;
             builder.startMultiImage(result -> {
-                this.handleResult(result, asBase64, finalType1, asJpeg, width, height);
+                this.handleResult(result, asBase64, finalType1, asJpeg, width, height, textOverlay);
             });
         }
     }
 
-    private void handleResult(SelectedResult result, boolean asBase64, String type, boolean asJpeg, int width, int height) {
+    private void handleResult(SelectedResult result, boolean asBase64, String type, boolean asJpeg, int width, int height, String textOverlay) {
         List<Uri> list = new ArrayList<>();
         list.add(result.getUri());
 
@@ -149,10 +159,10 @@ public class AdvancedImagePicker extends CordovaPlugin {
             result.getAnnotate()
         );
 
-        this.handleResult(results, asBase64, type, asJpeg, width, height);
+        this.handleResult(results, asBase64, type, asJpeg, width, height, textOverlay);
     }
 
-    private void handleResult(SelectedResults results, boolean asBase64, String type, boolean asJpeg, int width, int height) {
+    private void handleResult(SelectedResults results, boolean asBase64, String type, boolean asJpeg, int width, int height, String textOverlay) {
 
         CallbackContext cb = this._callbackContext;
 
@@ -183,7 +193,7 @@ public class AdvancedImagePicker extends CordovaPlugin {
                         } else {
                             //Path tempFile = Files.createTempFile(null, null);
                             try {
-                                resultMap.put("src", encodeImageTempFile(uri, asJpeg, width, height));
+                                resultMap.put("src", encodeImageTempFile(uri, asJpeg, width, height, textOverlay));
                             } catch (IOException e) {
                                 e.printStackTrace();
                                 cb.error(e.getMessage());
@@ -236,13 +246,12 @@ public class AdvancedImagePicker extends CordovaPlugin {
         }
     }
 
-    private String encodeImageTempFile(Uri uri, boolean asJpeg, int width, int height) throws FileNotFoundException, IOException {
+    private String encodeImageTempFile(Uri uri, boolean asJpeg, int width, int height, String text) throws FileNotFoundException, IOException {
         InputStream imageStream = this.cordova.getContext().getContentResolver().openInputStream(uri);
         ExifInterface exif = new ExifInterface(imageStream);
 
         int rotation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
         int rotationInDegrees = exifToDegrees(rotation);
-
 
         imageStream = this.cordova.getContext().getContentResolver().openInputStream(uri);
         Bitmap selectedImage = BitmapFactory.decodeStream(imageStream);
@@ -296,6 +305,83 @@ public class AdvancedImagePicker extends CordovaPlugin {
                     true
             );
         }
+
+        // Add text watermark if provided
+        if (text != null && !text.isEmpty()) {
+            // Create a mutable copy of the bitmap to draw on
+            Bitmap mutableBitmap = selectedImage.copy(Bitmap.Config.ARGB_8888, true);
+            Canvas canvas = new Canvas(mutableBitmap);
+
+            // Calculate font size - similar to iOS version
+            float fontSize = finalWidth / 40f;
+            fontSize = Math.max(fontSize, 10f); // Minimum font size
+
+            // Create text paint
+            TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextSize(fontSize);
+            textPaint.setTextAlign(Paint.Align.RIGHT);
+
+            // Calculate the width we'll constrain the text layout to
+            int maxTextWidth = finalWidth;
+
+            // First create a StaticLayout to measure the actual height and width
+            StaticLayout measuringLayout = StaticLayout.Builder.obtain(text, 0, text.length(),
+                            textPaint, maxTextWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_OPPOSITE)
+                    .build();
+
+            int textHeight = measuringLayout.getHeight();
+            int textWidth = 0;
+            for (int i = 0; i < measuringLayout.getLineCount(); i++) {
+                textWidth = Math.max(textWidth, (int) measuringLayout.getLineWidth(i));
+            }
+
+            // Padding calculation similar to iOS
+            float padding = fontSize * 0.8f;
+
+            // Create background rectangle for text
+            RectF textBackgroundRect = new RectF(
+                    finalWidth - textWidth - 20 - padding * 2,
+                    finalHeight - textHeight - 20 - padding * 2,
+                    finalWidth - 20,
+                    finalHeight - 20
+            );
+
+            // Draw the semi-transparent background
+            Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            backgroundPaint.setColor(Color.GRAY);
+            backgroundPaint.setAlpha(128); // 50% transparency
+            backgroundPaint.setStyle(Paint.Style.FILL);
+            canvas.drawRoundRect(textBackgroundRect, padding/2, padding/2, backgroundPaint);
+
+            // Draw the border
+            Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            borderPaint.setColor(Color.WHITE);
+            borderPaint.setAlpha(179); // 70% opacity
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(1f);
+            canvas.drawRoundRect(textBackgroundRect, padding/2, padding/2, borderPaint);
+
+            // Draw the text - create a new StaticLayout specifically for the background rect
+            StaticLayout textLayout = StaticLayout.Builder.obtain(text, 0, text.length(),
+                            textPaint, textWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .build();
+
+            canvas.save();
+            // Translate to the left edge of the text background rect plus padding
+            canvas.translate(
+                    textBackgroundRect.right - padding,
+                    textBackgroundRect.top + padding / 2
+            );
+            textLayout.draw(canvas);
+            canvas.restore();
+
+            // Replace the original bitmap with our modified one
+            selectedImage = mutableBitmap;
+        }
+
         galleryImageCount++;
         File file = new File(
                 this.cordova.getContext().getCacheDir(),
@@ -304,7 +390,7 @@ public class AdvancedImagePicker extends CordovaPlugin {
                         galleryImageCount,
                         asJpeg ? "jpg" : "png"
                 )
-            );
+        );
         if(file.exists()) file.delete();
 
         FileOutputStream outStream = new FileOutputStream(file);
@@ -320,13 +406,13 @@ public class AdvancedImagePicker extends CordovaPlugin {
 
         if(!compressResult) {
             throw new IOException(
-                "Image compression failed. Please try again."
+                    "Image compression failed. Please try again."
             );
         }
 
         if(file.length() == 0) {
             throw new IOException(
-                "Image size is 0 bytes. Please try again."
+                    "Image size is 0 bytes. Please try again."
             );
         }
 
