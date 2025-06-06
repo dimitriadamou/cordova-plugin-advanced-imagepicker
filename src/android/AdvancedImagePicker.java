@@ -89,7 +89,7 @@ public class AdvancedImagePicker extends CordovaPlugin {
         boolean asJpeg = options.optBoolean("asJpeg");
         int width = options.optInt("width", 1024);
         int height = options.optInt("height", 1024);
-        String textOverlay = options.optString("textOverflow", "");
+        String textOverlay = options.optString("textOverlay", "");
 
         if (min < 0 || max < 0) {
             this.returnError(AdvancedImagePickerErrorCodes.WrongJsonObject, "Min and Max can not be less then zero.");
