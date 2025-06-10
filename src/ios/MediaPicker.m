@@ -155,41 +155,42 @@
             newSize = CGSizeMake(imgSize.width * widthRatio, imgSize.height * widthRatio);
         }
         
-        CGFloat fontSize = newSize.width / 40;
-        // Set a minimum font size to ensure readability
-        fontSize = MAX(fontSize, 10.0);
-        CGRect rect = CGRectMake(0, 0, newSize.width, newSize.height);
-        NSMutableParagraphStyle* textStyle = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
-        textStyle.alignment = NSTextAlignmentRight;
-        NSDictionary* textFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Helvetica" size: fontSize], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: textStyle };
-
-        // Calculate text rect
-        CGSize textSize = [text sizeWithAttributes:textFontAttributes];
-        // Add some padding around the text
-        CGFloat padding = fontSize * 0.8;
-        CGRect textBackgroundRect = CGRectMake(
-            newSize.width - textSize.width - 40 - padding,
-            newSize.height - textSize.height - 40 - padding,
-            textSize.width + (padding * 2),
-            textSize.height + (padding * 2)
-        );
-        
-        CGRect textRect = CGRectMake(
-            textBackgroundRect.origin.x + padding,
-            textBackgroundRect.origin.y + padding,
-            textSize.width,
-            textSize.height
-        );
         
         UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0f);
         CGContextRef context = UIGraphicsGetCurrentContext();
-
+        
+        CGRect rect = CGRectMake(0, 0, newSize.width, newSize.height);
         // Draw the image
         UIGraphicsPushContext(context);
         [image drawInRect:rect];
         UIGraphicsPopContext();
         
         if(text != nil && ![text isEqualToString:@""]) {
+            CGFloat fontSize = newSize.width / 40;
+            // Set a minimum font size to ensure readability
+            fontSize = MAX(fontSize, 10.0);
+            NSMutableParagraphStyle* textStyle = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
+            textStyle.alignment = NSTextAlignmentRight;
+            
+            NSDictionary* textFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Helvetica" size: fontSize], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: textStyle };
+
+            // Calculate text rect
+            CGSize textSize = [text sizeWithAttributes:textFontAttributes];
+            // Add some padding around the text
+            CGFloat padding = fontSize * 0.8;
+            CGRect textBackgroundRect = CGRectMake(
+                newSize.width - textSize.width - 40 - padding,
+                newSize.height - textSize.height - 40 - padding,
+                textSize.width + (padding * 2),
+                textSize.height + (padding * 2)
+            );
+            
+            CGRect textRect = CGRectMake(
+                textBackgroundRect.origin.x + padding,
+                textBackgroundRect.origin.y + padding,
+                textSize.width,
+                textSize.height
+            );
             
             // Draw semi-transparent background
             UIGraphicsPushContext(context);
@@ -209,11 +210,10 @@
             UIGraphicsPushContext(context);
             [text drawInRect:textRect withAttributes:textFontAttributes];
             UIGraphicsPopContext();
-            
-            image = UIGraphicsGetImageFromCurrentImageContext();
-            UIGraphicsEndImageContext();
-            
         }
+            
+        image = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
     }
     return UIImageJPEGRepresentation(image, 0.8f);
 }
@@ -484,7 +484,7 @@
             [options setObject:size forKey:@"size"];
             [options setObject:filename forKey:@"name"];
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:options] callbackId:callbackId];
-        }        
+        }
         
     }else{
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:options] callbackId:callbackId];
